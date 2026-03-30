@@ -117,12 +117,12 @@ export default function SignupPage() {
             disabled={loading}
             className="w-full bg-purple-600 hover:bg-purple-700 py-6 text-lg rounded-xl"
           >
-            {loading ? 'Loading...' : '🚀 Start Journey'}
+            {loading ? 'Loading...' : ' 🚀 Start Journey'}
           </Button>
         </div>
 
         <p className="text-center text-gray-500 mt-6">
-          Already a hero?{' '}
+          Already a hero?{'  '}
           <Link href="/login" className="text-purple-400 hover:text-purple-300">
             Login
           </Link>

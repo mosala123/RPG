@@ -84,7 +84,7 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full bg-purple-600 hover:bg-purple-700 py-6 text-lg rounded-xl"
           >
-            {loading ? 'Loading...' : '⚔️ Login'}
+            {loading ? 'Loading...' : ' ⚔️ Login'}
           </Button>
         </div>
 

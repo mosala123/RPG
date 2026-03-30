@@ -109,7 +109,7 @@ export default function ProfilePage() {
           transition={{ repeat: Infinity, duration: 1.5 }}
           className="text-purple-400 text-xl"
         >
-          ⚔️ Loading your profile...
+          ⚔️ Loading your  profile...
         </motion.div>
       </div>
     )
