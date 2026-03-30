@@ -1,6 +1,6 @@
 'use client'
 
-import { motion, useScroll, useTransform } from 'framer-motion'
+import { motion, useScroll, useTransform, easeInOut } from 'framer-motion'
 import Link from 'next/link'
 import { Button } from "@/components/ui/button"
 import { useEffect, useState } from 'react'
@@ -21,16 +21,16 @@ export default function LandingPage() {
     transition: {
       duration: 6,
       repeat: Infinity,
-      ease: "easeInOut"
+      ease: easeInOut
     }
   }
 
   return (
     <main className="min-h-screen bg-black text-white relative overflow-hidden">
-      
+
       {/* Animated background gradient */}
       <div className="absolute inset-0 bg-gradient-to-br from-purple-900/30 via-black to-cyan-900/30 animate-gradient" />
-      
+
       {/* Floating orbs */}
       <motion.div
         className="absolute top-20 left-10 w-64 h-64 rounded-full bg-purple-500/10 blur-3xl"
@@ -42,28 +42,28 @@ export default function LandingPage() {
           ...floatingAnimation,
           y: [0, -30, 0],
         }}
-        transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+        transition={{ duration: 8, repeat: Infinity, ease: easeInOut }}
       />
       <motion.div
         className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full bg-purple-500/5 blur-3xl"
         animate={{
           scale: [1, 1.2, 1],
         }}
-        transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
+        transition={{ duration: 10, repeat: Infinity, ease: easeInOut }}
       />
-      
+
       {/* Enhanced grid effect */}
       <div className="absolute inset-0 bg-[linear-gradient(rgba(139,92,246,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(139,92,246,0.03)_1px,transparent_1px)] bg-[size:50px_50px]" />
-      
+
       {/* Diagonal lines pattern */}
       <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_65%,rgba(139,92,246,0.03)_75%,rgba(6,182,212,0.03)_85%,transparent_95%)]" />
 
-      <motion.div 
+      <motion.div
         className="relative z-10 min-h-screen flex flex-col items-center justify-center px-4 sm:px-6 lg:px-8"
         style={{ opacity, scale }}
       >
         <div className="text-center max-w-7xl mx-auto">
-          
+
           {/* Animated badge */}
           <motion.div
             initial={{ opacity: 0, y: -20 }}
