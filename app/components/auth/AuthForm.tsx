@@ -78,5 +78,3 @@ export default function AuthForm({
     </div>
   )
 }
-```
-src/components/dashboard/StatsCard.tsx
