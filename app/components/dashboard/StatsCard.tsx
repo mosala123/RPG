@@ -21,10 +21,3 @@ export default function StatsCard({ label, value, color }: StatsCardProps) {
     </div>
   )
 }
-```
-
----
-
-**تالت ملف:**
-```
-src/components/dashboard/XPBar.tsx

@@ -22,10 +22,3 @@ export default function XPBar({ xp, level, xpPerLevel = 100 }: XPBarProps) {
     </div>
   )
 }
-```
-
----
-
-**رابع ملف:**
-```
-src/components/quests/QuestCard.tsx
