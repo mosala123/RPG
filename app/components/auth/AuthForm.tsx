@@ -79,9 +79,4 @@ export default function AuthForm({
   )
 }
 ```
-
----
-
-**تاني ملف:**
-```
 src/components/dashboard/StatsCard.tsx
