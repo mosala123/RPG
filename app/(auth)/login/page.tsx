@@ -17,24 +17,43 @@ export default function LoginPage() {
   const [error, setError] = useState('')
 
   const handleLogin = async () => {
-    setLoading(true)
-    setError('')
-
-    const supabase = createClient()
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-
-    if (error) {
-      setError(error.message)
-      setLoading(false)
+    if (!email || !password) {
+      setError('Please fill in all fields')
       return
     }
 
-    router.push('/dashboard')
+    setLoading(true)
+    setError('')
+
+    try {
+      const supabase = createClient()
+      const { data, error: loginError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+
+      if (loginError) {
+        setError(loginError.message)
+        setLoading(false)
+        return
+      }
+
+      if (data.session) {
+        // استخدم window.location بدل router عشان يعمل hard refresh
+        window.location.href = '/dashboard'
+      } else {
+        setError('Login failed, please try again')
+        setLoading(false)
+      }
+    } catch (err) {
+      setError('Something went wrong, please try again')
+      setLoading(false)
+    }
   }
 
   return (
     <main className="min-h-screen bg-black text-white flex items-center justify-center relative overflow-hidden">
-      
+
       <div className="absolute inset-0 bg-gradient-to-br from-purple-900/20 via-black to-cyan-900/20" />
 
       <motion.div
@@ -44,6 +63,7 @@ export default function LoginPage() {
         className="relative z-10 w-full max-w-md p-8 rounded-2xl border border-gray-800 bg-gray-900/80 backdrop-blur-sm"
       >
         <div className="text-center mb-8">
+          <div className="text-5xl mb-3">⚔️</div>
           <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent">
             Welcome Back
           </h1>
@@ -58,8 +78,10 @@ export default function LoginPage() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
               className="mt-1 bg-gray-800 border-gray-700 text-white"
               placeholder="hero@example.com"
+              autoComplete="email"
             />
           </div>
 
@@ -70,13 +92,21 @@ export default function LoginPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
               className="mt-1 bg-gray-800 border-gray-700 text-white"
               placeholder="••••••••"
+              autoComplete="current-password"
             />
           </div>
 
           {error && (
-            <p className="text-red-400 text-sm">{error}</p>
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-2"
+            >
+              ❌ {error}
+            </motion.p>
           )}
 
           <Button
@@ -84,7 +114,12 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full bg-purple-600 hover:bg-purple-700 py-6 text-lg rounded-xl"
           >
-            {loading ? 'Loading...' : ' ⚔️ Login'}
+            {loading ? (
+              <span className="flex items-center gap-2">
+                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Logging in...
+              </span>
+            ) : '⚔️ Login'}
           </Button>
         </div>
 
