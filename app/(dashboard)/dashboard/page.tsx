@@ -112,7 +112,7 @@ export default function DashboardPage() {
     // *** Activity heatmap - جلب تواريخ إكمال الـ quests ***
     const { data: completedQuests } = await supabase
       .from('quests')
-      .select('updated_at')
+      .select('updated_at, created_at')
       .eq('user_id', authUser.id)
       .eq('is_completed', true)
 
