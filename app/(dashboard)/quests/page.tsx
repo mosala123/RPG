@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
 import { useUserStore } from '@/store/useUserStore'
@@ -31,8 +31,14 @@ const SKILL_ICONS: Record<string, string> = {
   Creativity: '🎨',
 }
 
+interface XPFloater {
+  id: number
+  amount: number
+  x: number
+}
+
 export default function QuestsPage() {
-  const { user, addXP } = useUserStore()
+  const { user, addXP, setUser } = useUserStore()
   const [quests, setQuests] = useState<Quest[]>([])
   const [skills, setSkills] = useState<Skill[]>([])
   const [title, setTitle] = useState('')
@@ -40,11 +46,14 @@ export default function QuestsPage() {
   const [difficulty, setDifficulty] = useState<Difficulty>('easy')
   const [selectedSkill, setSelectedSkill] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const [xpPopup, setXpPopup] = useState<number | null>(null)
+  const [completing, setCompleting] = useState<string | null>(null)
+  const [xpFloaters, setXpFloaters] = useState<XPFloater[]>([])
   const [levelUpPopup, setLevelUpPopup] = useState<number | null>(null)
   const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('all')
   const [completedCount, setCompletedCount] = useState(0)
   const [activeCount, setActiveCount] = useState(0)
+  const [skillLevelUp, setSkillLevelUp] = useState<string | null>(null)
+  const floaterIdRef = useRef(0)
 
   const fetchQuests = useCallback(async () => {
     const supabase = createClient()
@@ -70,12 +79,28 @@ export default function QuestsPage() {
     if (data) setSkills(data as Skill[])
   }, [])
 
+  // Real-time subscription للـ quests
   useEffect(() => {
     fetchQuests()
     fetchSkills()
-    const interval = setInterval(fetchQuests, 15000)
-    return () => clearInterval(interval)
+
+    const supabase = createClient()
+    const channel = supabase
+      .channel('quests-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'quests' }, () => {
+        fetchQuests()
+      })
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
   }, [fetchQuests, fetchSkills])
+
+  const addXPFloater = (amount: number) => {
+    const id = ++floaterIdRef.current
+    const x = 40 + Math.random() * 20
+    setXpFloaters(prev => [...prev, { id, amount, x }])
+    setTimeout(() => setXpFloaters(prev => prev.filter(f => f.id !== id)), 1500)
+  }
 
   const handleAddQuest = async () => {
     if (!title.trim()) return
@@ -109,34 +134,36 @@ export default function QuestsPage() {
   }
 
   const handleComplete = async (quest: Quest) => {
+    if (completing === quest.id) return
+    setCompleting(quest.id)
+
     const supabase = createClient()
     const { data: { user: authUser } } = await supabase.auth.getUser()
     if (!authUser) return
 
-    await supabase
-      .from('quests')
-      .update({ is_completed: true })
-      .eq('id', quest.id)
+    // Mark quest complete
+    await supabase.from('quests').update({ is_completed: true }).eq('id', quest.id)
 
-    const currentXP = (user?.xp ?? 0) + quest.xp_reward
-    const currentLevel = user?.level ?? 1
-    const newLevel = currentXP >= 100
-      ? currentLevel + Math.floor(currentXP / 100)
-      : currentLevel
-    const newXP = currentXP % 100
+    // Update user XP + level
+    const { data: freshUser } = await supabase.from('users').select('*').eq('id', authUser.id).single()
+    if (freshUser) {
+      const totalXP = (freshUser.xp ?? 0) + quest.xp_reward
+      const newLevel = freshUser.level + Math.floor(totalXP / 100)
+      const newXP = totalXP % 100
 
-    await supabase
-      .from('users')
-      .update({ xp: newXP, level: newLevel })
-      .eq('id', authUser.id)
+      await supabase.from('users').update({ xp: newXP, level: newLevel }).eq('id', authUser.id)
 
-    if (newLevel > currentLevel) {
-      setLevelUpPopup(newLevel)
-      setTimeout(() => setLevelUpPopup(null), 3000)
+      if (newLevel > freshUser.level) {
+        setLevelUpPopup(newLevel)
+        setTimeout(() => setLevelUpPopup(null), 4000)
+      }
+
+      // تحديث الـ store فوراً
+      setUser({ ...freshUser, xp: newXP, level: newLevel })
+      addXP(quest.xp_reward)
     }
 
-    addXP(quest.xp_reward)
-
+    // *** التحديث الفوري للـ skill ***
     if (quest.skill_id) {
       const { data: userSkill } = await supabase
         .from('user_skills')
@@ -146,6 +173,7 @@ export default function QuestsPage() {
         .single()
 
       if (userSkill) {
+        const prevLevel = userSkill.level
         const newSkillXP = (userSkill.xp ?? 0) + quest.xp_reward
         const newSkillLevel = userSkill.level + Math.floor(newSkillXP / 100)
         const remainingXP = newSkillXP % 100
@@ -154,17 +182,22 @@ export default function QuestsPage() {
           .from('user_skills')
           .update({ xp: remainingXP, level: newSkillLevel })
           .eq('id', userSkill.id)
+
+        // لو الـ skill لفل زاد اعرض notification
+        if (newSkillLevel > prevLevel) {
+          const skillName = skills.find(s => s.id === quest.skill_id)?.name ?? 'Skill'
+          setSkillLevelUp(`${SKILL_ICONS[skillName] ?? '⭐'} ${skillName} reached Level ${newSkillLevel}!`)
+          setTimeout(() => setSkillLevelUp(null), 3000)
+        }
       }
     }
 
-    setXpPopup(quest.xp_reward)
-    setTimeout(() => setXpPopup(null), 2000)
+    addXPFloater(quest.xp_reward)
 
-    setQuests(prev => prev.map(q =>
-      q.id === quest.id ? { ...q, is_completed: true } : q
-    ))
+    setQuests(prev => prev.map(q => q.id === quest.id ? { ...q, is_completed: true } : q))
     setCompletedCount(prev => prev + 1)
     setActiveCount(prev => prev - 1)
+    setCompleting(null)
   }
 
   const handleDelete = async (questId: string, isCompleted: boolean) => {
@@ -217,16 +250,36 @@ export default function QuestsPage() {
           </div>
         </motion.div>
 
-        {/* XP Popup */}
+        {/* XP Floaters */}
+        <div className="fixed top-0 left-0 w-full h-full pointer-events-none z-50">
+          <AnimatePresence>
+            {xpFloaters.map(f => (
+              <motion.div
+                key={f.id}
+                initial={{ opacity: 1, y: '45vh', x: `${f.x}vw`, scale: 1 }}
+                animate={{ opacity: 0, y: '30vh', scale: 1.3 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 1.2, ease: 'easeOut' }}
+                className="absolute font-black text-3xl text-yellow-400 drop-shadow-[0_0_20px_rgba(250,204,21,0.8)]"
+                style={{ textShadow: '0 0 30px #facc15' }}
+              >
+                +{f.amount} XP ⚡
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </div>
+
+        {/* Skill Level Up Toast */}
         <AnimatePresence>
-          {xpPopup && (
+          {skillLevelUp && (
             <motion.div
-              initial={{ opacity: 0, y: 0, scale: 0.5 }}
-              animate={{ opacity: 1, y: -50, scale: 1 }}
-              exit={{ opacity: 0, y: -100 }}
-              className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-yellow-500 text-black font-bold text-2xl px-6 py-3 rounded-2xl shadow-lg shadow-yellow-500/50"
+              initial={{ opacity: 0, x: 100 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 100 }}
+              className="fixed bottom-6 right-6 z-50 bg-purple-600 text-white font-bold px-6 py-4 rounded-2xl shadow-lg shadow-purple-500/40 border border-purple-400/30"
             >
-              +{xpPopup} XP ⚡
+              🎯 Skill Level Up!<br />
+              <span className="text-purple-200 font-normal text-sm">{skillLevelUp}</span>
             </motion.div>
           )}
         </AnimatePresence>
@@ -243,10 +296,15 @@ export default function QuestsPage() {
               <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
               <motion.div
                 initial={{ y: 50 }}
-                animate={{ y: 0 }}
+                animate={{ y: [50, 0, -10, 0] }}
+                transition={{ duration: 0.6 }}
                 className="relative z-10 text-center p-10 rounded-3xl border border-purple-500/50 bg-gray-900 shadow-2xl shadow-purple-500/20"
               >
-                <div className="text-8xl mb-4">🎉</div>
+                <motion.div
+                  animate={{ rotate: [0, -10, 10, -10, 0], scale: [1, 1.2, 1] }}
+                  transition={{ duration: 0.8 }}
+                  className="text-8xl mb-4"
+                >🎉</motion.div>
                 <h2 className="text-5xl font-bold bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent">
                   LEVEL UP!
                 </h2>
@@ -254,6 +312,12 @@ export default function QuestsPage() {
                   You reached Level <span className="text-purple-400 font-bold">{levelUpPopup}</span>
                 </p>
                 <p className="text-gray-500 mt-2 text-sm">Keep going, hero! 💪</p>
+                <button
+                  onClick={() => setLevelUpPopup(null)}
+                  className="mt-6 px-6 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 transition-colors text-sm font-medium"
+                >
+                  Continue ⚔️
+                </button>
               </motion.div>
             </motion.div>
           )}
@@ -378,7 +442,8 @@ export default function QuestsPage() {
                 key={quest.id}
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 20 }}
+                exit={{ opacity: 0, x: 20, height: 0 }}
+                layout
                 className={`flex items-center justify-between p-4 rounded-xl border transition-all ${
                   quest.is_completed
                     ? 'border-gray-800 bg-gray-900/30 opacity-60'
@@ -411,9 +476,14 @@ export default function QuestsPage() {
                   {!quest.is_completed ? (
                     <Button
                       onClick={() => handleComplete(quest)}
-                      className="bg-green-600 hover:bg-green-700 rounded-xl"
+                      disabled={completing === quest.id}
+                      className={`rounded-xl transition-all ${
+                        completing === quest.id
+                          ? 'bg-gray-600 cursor-not-allowed'
+                          : 'bg-green-600 hover:bg-green-700 hover:scale-105'
+                      }`}
                     >
-                      ✓ Complete
+                      {completing === quest.id ? '⏳' : '✓ Complete'}
                     </Button>
                   ) : (
                     <span className="text-green-400 font-bold text-sm">✓ Done</span>
@@ -447,7 +517,6 @@ export default function QuestsPage() {
             </motion.div>
           )}
         </div>
-
       </div>
     </div>
   )
